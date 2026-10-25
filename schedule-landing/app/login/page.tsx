@@ -14,7 +14,7 @@ export default function LoginPage() {
     const [loading, setLoading] = useState(false);
 
     const t = TRANSLATIONS[lang];
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://ryokotable.onrender.com';
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
