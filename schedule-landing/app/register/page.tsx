@@ -23,12 +23,13 @@ export default function RegisterPage() {
         setError('');
 
         try {
-        const res = await fetch(`${API_URL}/auth/register`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password, name }),
-        });
+        const cleanApiUrl = API_URL.endsWith('/') ? API_URL.slice(0, -1) : API_URL;
 
+    const res = await fetch(`${cleanApiUrl}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password, name }),
+    });
         const data = await res.json();
         if (!res.ok) throw new Error(data.message || 'Ошибка регистрации');
 
