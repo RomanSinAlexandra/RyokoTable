@@ -24,7 +24,7 @@ export default function PersonalCalendar() {
   const [editHours, setEditHours] = useState(8);
 
   const t = TRANSLATIONS[lang];
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+  const API_URL = process.env.NEXT_API_URL || 'http://localhost:3001';
 
   const fetchSchedule = async () => {
     setLoading(true);
