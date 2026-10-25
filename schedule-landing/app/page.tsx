@@ -24,11 +24,12 @@ export default function PersonalCalendar() {
   const [editHours, setEditHours] = useState(8);
 
   const t = TRANSLATIONS[lang];
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
   const fetchSchedule = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`http://localhost:3001/schedules/${userId}?year=${year}&month=${month}`);
+      const res = await fetch(`${API_URL}/schedules/${userId}?year=${year}&month=${month}`);
       if (!res.ok) throw new Error('Server error');
       const data = await res.json();
       setSchedule(data);
@@ -51,7 +52,7 @@ export default function PersonalCalendar() {
   const handleSaveDay = async () => {
     if (!selectedDay) return;
     try {
-      const res = await fetch(`http://localhost:3001/schedules/day/${selectedDay.id}`, {
+      const res = await fetch(`${API_URL}/schedules/day/${selectedDay.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: editType, hours: Number(editHours) }),
