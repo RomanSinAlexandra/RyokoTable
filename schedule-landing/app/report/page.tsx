@@ -2,46 +2,84 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Language, MONTH_NAMES, WEEKDAYS, TRANSLATIONS } from '../i18n';
 
 const HOURLY_RATE = 25;
-const UNPAID_BREAK_HOURS = 0.5;
 
 function ReportContent() {
     const searchParams = useSearchParams();
+    const router = useRouter();
     const [lang, setLang] = useState<Language>((searchParams.get('lang') as Language) || 'ru');
-    const [userId] = useState('employee-001');
+    const [userId, setUserId] = useState<string | null>(null);
+    const [userName, setUserName] = useState<string>('АГЕНТ');
     const [year] = useState(2026);
     const [month, setMonth] = useState(10);
     const [schedule, setSchedule] = useState<any>(null);
     const [loading, setLoading] = useState(false);
 
     const t = TRANSLATIONS[lang];
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://ryokotable.onrender.com';
+
+    // Проверка авторизации при загрузке отчета
+    useEffect(() => {
+        const token = localStorage.getItem('token');
+        const storedUserId = localStorage.getItem('userId');
+        const storedName = localStorage.getItem('userName');
+
+        if (!token || !storedUserId) {
+            router.push('/login');
+            return;
+        }
+
+        setUserId(storedUserId);
+        if (storedName) setUserName(storedName);
+    }, [router]);
 
     const fetchReport = async () => {
+        if (!userId) return;
         setLoading(true);
         try {
-        const res = await fetch(`http://localhost:3001/schedules/${userId}?year=${year}&month=${month}`);
-        if (!res.ok) throw new Error('Error');
-        const data = await res.json();
-        setSchedule(data);
+            const token = localStorage.getItem('token');
+            const res = await fetch(`${API_URL}/schedules/${userId}?year=${year}&month=${month}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (res.status === 401) {
+                localStorage.clear();
+                router.push('/login');
+                return;
+            }
+
+            if (!res.ok) throw new Error('Error');
+            const data = await res.json();
+            setSchedule(data);
         } catch (err) {
-        console.error(err);
+            console.error(err);
         } finally {
-        setLoading(false);
+            setLoading(false);
         }
     };
 
     useEffect(() => {
-        fetchReport();
-    }, [month]);
+        if (userId) {
+            fetchReport();
+        }
+    }, [month, userId]);
+
+    const handleLogout = () => {
+        localStorage.clear();
+        router.push('/login');
+    };
 
     const daysData = schedule?.days || [];
     const activeShiftsCount = daysData.filter((d: any) => d.hours > 0).length;
     const totalGrossHours = daysData.reduce((sum: number, d: any) => sum + (d.hours || 0), 0);
-    const totalBreakHours = activeShiftsCount * UNPAID_BREAK_HOURS;
-    const totalNetPaidHours = Math.max(0, totalGrossHours - totalBreakHours);
+    
+    // Часы не уменьшаются на перерыв, но перерыв отображается в таблице
+    const totalNetPaidHours = totalGrossHours; 
     const totalSalary = totalNetPaidHours * HOURLY_RATE;
 
     return (
@@ -58,14 +96,23 @@ function ReportContent() {
                 {t.calendarButton}
                 </Link>
                 <div>
-                <div className="text-[10px] text-[#00f0ff] tracking-widest">[AION // TIMESHEET]</div>
+                <div className="text-[10px] text-[#00f0ff] tracking-widest flex items-center gap-2">
+                    <span>[RYOKO // TIMESHEET // AGENT: <strong className="text-white">{userName}</strong>]</span>
+                    {/* Кнопка выхода */}
+                    <button 
+                    onClick={handleLogout}
+                    className="px-3 py-1 bg-[#ff0055]/10 border border-[#ff0055] text-[#ff0055] hover:bg-[#ff0055] hover:text-black transition-all text-xs font-bold"
+                    >
+                    {t.logout}
+                    </button>
+                </div>
                 <h1 className="text-xl md:text-2xl font-bold text-white tracking-wider">
                     {t.reportTitle} — {MONTH_NAMES[lang][month - 1]} {year}
                 </h1>
                 </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
                 {/* Выбор языка */}
                 <div className="flex items-center gap-1 border border-gray-800 p-1 bg-black">
                 {(['ru', 'uk', 'pl', 'en'] as Language[]).map((l) => (
@@ -84,7 +131,7 @@ function ReportContent() {
                 <select
                 value={month}
                 onChange={(e) => setMonth(Number(e.target.value))}
-                className="bg-black border border-[#00f0ff] text-[#00f0ff] px-3 py-1 text-sm focus:outline-none"
+                className="bg-black border border-[#00f0ff] text-[#00f0ff] px-3 py-1 text-sm focus:outline-none cursor-pointer"
                 >
                 {MONTH_NAMES[lang].map((name, i) => (
                     <option key={i + 1} value={i + 1}>{name}</option>
@@ -97,6 +144,7 @@ function ReportContent() {
                 >
                 {t.print}
                 </button>
+
             </div>
             </nav>
 
@@ -111,13 +159,13 @@ function ReportContent() {
             <div className="bg-[#080814] p-4 border border-[#00f0ff]/40">
                 <div className="text-[10px] text-[#00f0ff] mb-1">{t.paidHours}</div>
                 <div className="text-2xl font-bold text-[#00f0ff]">{totalNetPaidHours} h</div>
-                <div className="text-[10px] text-gray-500 mt-1">{t.grossHours}: {totalGrossHours}h (-{totalBreakHours}h)</div>
+                <div className="text-[10px] text-gray-500 mt-1">{t.grossHours}: {totalGrossHours}h</div>
             </div>
 
             <div className="bg-[#080814] p-4 border border-gray-800">
                 <div className="text-[10px] text-gray-400 mb-1">{t.shiftsCount}</div>
                 <div className="text-2xl font-bold text-white">{activeShiftsCount}</div>
-                <div className="text-[10px] text-gray-500 mt-1">30 min break / shift</div>
+                <div className="text-[10px] text-gray-500 mt-1">Break: 30m (≥8h) / 45m (≥11h)</div>
             </div>
 
             <div className="bg-[#080814] p-4 border border-gray-800">
@@ -152,8 +200,16 @@ function ReportContent() {
                     const dateObj = new Date(day.date);
                     const dayOfWeekStr = WEEKDAYS[lang][(dateObj.getDay() + 6) % 7];
                     const grossHours = day.hours || 0;
-                    const breakHours = grossHours > 0 ? UNPAID_BREAK_HOURS : 0;
-                    const netPaidHours = Math.max(0, grossHours - breakHours);
+                    
+                    // Логика отображения перерыва (30 мин при >= 8ч, 45 мин при >= 11ч)
+                    let breakLabel = '—';
+                    if (grossHours >= 11) {
+                        breakLabel = '-45 min';
+                    } else if (grossHours >= 8) {
+                        breakLabel = '-30 min';
+                    }
+
+                    const netPaidHours = grossHours; 
                     const daySalary = netPaidHours * HOURLY_RATE;
 
                     return (
@@ -163,7 +219,7 @@ function ReportContent() {
                         <td className="p-3 font-semibold text-gray-300">{dayOfWeekStr}</td>
                         <td className="p-3">{t.types[day.type as keyof typeof t.types]}</td>
                         <td className="p-3 text-center text-[#00f0ff]">{grossHours}h</td>
-                        <td className="p-3 text-center text-gray-500">{breakHours > 0 ? '-30 min' : '—'}</td>
+                        <td className="p-3 text-center text-gray-500">{breakLabel}</td>
                         <td className="p-3 text-center font-bold text-[#00f0ff]">{netPaidHours}h</td>
                         <td className="p-3 text-right font-bold text-[#00ff66]">+{daySalary.toFixed(2)} $</td>
                         </tr>
@@ -176,9 +232,9 @@ function ReportContent() {
         </div>
         </div>
     );
-    }
+}
 
-    export default function MonthlyReportPage() {
+export default function MonthlyReportPage() {
     return (
         <Suspense fallback={<div className="bg-[#030308] min-h-screen text-[#00f0ff] p-8 font-mono">LOADING TERMINAL...</div>}>
         <ReportContent />

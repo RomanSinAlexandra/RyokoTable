@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Language, MONTH_NAMES, WEEKDAYS, TRANSLATIONS } from './i18n';
 
@@ -12,8 +13,10 @@ const SHIFT_STYLES = {
 };
 
 export default function PersonalCalendar() {
+  const router = useRouter();
   const [lang, setLang] = useState<Language>('ru');
-  const [userId] = useState('employee-001');
+  const [userId, setUserId] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string>('АГЕНТ');
   const [year] = useState(2026);
   const [month, setMonth] = useState(10);
   const [schedule, setSchedule] = useState<any>(null);
@@ -26,10 +29,42 @@ export default function PersonalCalendar() {
   const t = TRANSLATIONS[lang];
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://ryokotable.onrender.com';
 
+  // Проверка авторизации при монтировании
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const storedUserId = localStorage.getItem('userId');
+    const storedName = localStorage.getItem('userName');
+
+    if (!token || !storedUserId) {
+      // Если токена нет — перебрасываем на страницу входа/регистрации
+      router.push('/login');
+      return;
+    }
+
+    setUserId(storedUserId);
+      if (storedName && storedName !== 'undefined') {
+        setUserName(storedName);
+  }
+}, [router]);
+
   const fetchSchedule = async () => {
+    if (!userId) return;
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/schedules/${userId}?year=${year}&month=${month}`);
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_URL}/schedules/${userId}?year=${year}&month=${month}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (res.status === 401) {
+        // Токен протух или невалиден — на логин
+        localStorage.clear();
+        router.push('/login');
+        return;
+      }
+
       if (!res.ok) throw new Error('Server error');
       const data = await res.json();
       setSchedule(data);
@@ -46,21 +81,32 @@ export default function PersonalCalendar() {
   };
 
   useEffect(() => {
-    fetchSchedule();
-  }, [month]);
+    if (userId) {
+      fetchSchedule();
+    }
+  }, [month, userId]);
 
   const handleSaveDay = async () => {
     if (!selectedDay) return;
     try {
+      const token = localStorage.getItem('token');
       const res = await fetch(`${API_URL}/schedules/day/${selectedDay.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ type: editType, hours: Number(editHours) }),
       });
       if (res.ok) fetchSchedule();
     } catch (err) {
       console.error(err);
     }
+  };
+
+  const handleLogout = () => {
+    localStorage.clear();
+    router.push('/login');
   };
 
   const totalHours = schedule?.days?.reduce((acc: number, d: any) => acc + d.hours, 0) || 0;
@@ -72,7 +118,16 @@ export default function PersonalCalendar() {
       {/* Шапка терминала */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-[#00f0ff]/30 pb-4 gap-4">
         <div>
-          <div className="text-xs text-[#00f0ff] mb-1">[AION_TIMELINE // AGENT: {userId}]</div>
+          <div className="text-xs text-[#00f0ff] mb-1 flex items-center gap-2">
+            <span>[RYOKO_TIMELINE // AGENT: <strong className="text-white">{userName}</strong>]</span>
+            {/* Кнопка выхода */}
+                <button 
+                  onClick={handleLogout}
+                  className="px-3 py-1 bg-[#ff0055]/10 border border-[#ff0055] text-[#ff0055] hover:bg-[#ff0055] hover:text-black transition-all text-xs font-bold"
+                >
+                  {t.logout}
+                </button>
+          </div>
           <h2 className="text-2xl font-bold tracking-wider text-white">{t.calendarTitle}</h2>
         </div>
 
@@ -216,6 +271,7 @@ export default function PersonalCalendar() {
 
           {selectedDay && (
             <button
+              id="save-day-btn"
               onClick={handleSaveDay}
               className="mt-6 w-full py-3 bg-[#00f0ff] text-black font-bold text-xs tracking-wider hover:bg-white transition-all shadow-[0_0_15px_rgba(0,240,255,0.4)]"
             >
