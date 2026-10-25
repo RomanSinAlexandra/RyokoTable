@@ -1,0 +1,30 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model WorkSchedule {
+  id        String       @id @default(uuid())
+  userId    String       // ID сотрудника (или отдела)
+  year      Int
+  month     Int          // 1-12
+  days      WorkDay[]
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@unique([userId, year, month])
+}
+
+model WorkDay {
+  id          String       @id @default(uuid())
+  scheduleId  String
+  schedule    WorkSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  date        DateTime     // Точная дата дня
+  dayNumber   Int          // День месяца (1-31)
+  type        String       @default("WORK") // "WORK", "DAY_OFF", "VACATION", "SICK"
+  hours       Float        @default(8.0)    // Количество рабочих часов в этот день
+}
