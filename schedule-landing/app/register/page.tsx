@@ -15,7 +15,7 @@ export default function RegisterPage() {
     const [loading, setLoading] = useState(false);
 
     const t = TRANSLATIONS[lang];
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://ryokotable.onrender.com';
+    const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'https://ryokotable.onrender.com').replace(/\/+$/, '');
 
     const handleRegister = async (e: React.FormEvent) => {
         e.preventDefault();
